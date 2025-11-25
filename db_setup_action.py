@@ -1,10 +1,6 @@
 # db_setup_action.py (ADICIONAR NA RAIZ)
 
-import os
-import sys
-import mysql.connector
-
-# O comando SQL para criar a tabela Tasks
+import os, sys, mysql.connector
 CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS Tasks (
     task_id VARCHAR(36) PRIMARY KEY,
@@ -15,12 +11,8 @@ CREATE TABLE IF NOT EXISTS Tasks (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 """
-
-# Função que executa o setup DDL
 def setup_database():
-    """Conecta ao MySQL e executa o comando CREATE TABLE."""
     try:
-        # Garante que as variáveis de ambiente necessárias para a conexão real estão presentes
         if not all(os.environ.get(v) for v in ["DB_HOST", "DB_USER", "DB_PASS", "DB_NAME", "DB_PORT"]):
             raise ValueError("ERRO DE CONFIGURAÇÃO: Secrets de DB ausentes ou incompletos.")
 
@@ -30,22 +22,16 @@ def setup_database():
             password=os.environ.get("DB_PASS"),
             database=os.environ.get("DB_NAME"),
             port=int(os.environ.get("DB_PORT")),
-            ssl_mode="REQUIRED" # Essencial para Aiven
+            ssl_mode="REQUIRED"
         )
         cursor = conn.cursor()
-        
-        # Executa o comando DDL
         cursor.execute(CREATE_TABLE_SQL)
         conn.commit()
-        
         print("✅ SUCESSO! Tabela 'Tasks' criada ou já existente.")
-        
-    except ValueError as ve:
-        print(f"🛑 ERRO DE VALIDAÇÃO: {ve}")
-        sys.exit(1)
-    except mysql.connector.Error as err:
-        print(f"🛑 ERRO AO CONFIGURAR O BANCO DE DADOS (MySQL): {err}")
+    except Exception as err:
+        print(f"🛑 ERRO: {err}")
         sys.exit(1)
 
 if __name__ == "__main__":
     setup_database()
+    
