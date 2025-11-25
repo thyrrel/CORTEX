@@ -1,9 +1,60 @@
-# db_setup_action.py (ADICIONAR NA RAIZ)
+name: C.O.R.T.E.X. Core Execution and Setup
 
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      run_db_setup:
+        description: 'Selecione TRUE para criar tabelas (Conexão Real), ou FALSE para rodar o Core (Mocking).'
+        required: true
+        type: boolean
+        default: false
+          
+jobs:
+  run_task:
+    runs-on: ubuntu-latest
+
+    # Variáveis globais do job
+    env:
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASS: ${{ secrets.DB_PASS }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      CORTEX_MODE: 'CI_TEST'
+    
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python and Install Dependencies
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+        
+      - name: 📦 Install MySQL Connector
+        run: pip install mysql-connector-python
+
+      # --- CAMINHO 1: DB SETUP (Criação de Tabelas) ---
+      # Condição: Só roda se o input for TRUE
+      - name: 🛠️ Execute DB Setup (Create Tables)
+        if: github.event.inputs.run_db_setup == true
+        # Define o CORTEX_MODE para o step
+        env:
+          CORTEX_MODE: 'SETUP_REAL' 
+        run: |
+          echo "EXECUTANDO SETUP DE DB: Conexão Real Forçada."
+          # O código Python DDL complexo está em um passo separado no próximo step (se bem-sucedido).
+          
+      # --- Passo de DDL Separado (Roda SOMENTE se o step anterior for TRUE) ---
+      - name: 💾 Run DDL Script on Aiven
+        if: github.event.inputs.run_db_setup == true
+        run: |
+          python -c "
 import os, sys, mysql.connector
-
-# O comando SQL para criar a tabela Tasks
-CREATE_TABLE_SQL = """
+CREATE_TABLE_SQL = '''
 CREATE TABLE IF NOT EXISTS Tasks (
     task_id VARCHAR(36) PRIMARY KEY,
     content TEXT NOT NULL,
@@ -12,26 +63,28 @@ CREATE TABLE IF NOT EXISTS Tasks (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
-"""
+'''
+try:
+    conn = mysql.connector.connect(
+        host=os.environ.get('DB_HOST'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASS'),
+        database=os.environ.get('DB_NAME'),
+        port=int(os.environ.get('DB_PORT')),
+        ssl_mode='REQUIRED'
+    )
+    cursor = conn.cursor()
+    cursor.execute(CREATE_TABLE_SQL)
+    conn.commit()
+    print('✅ SUCESSO: Tabela Tasks configurada.')
+except mysql.connector.Error as err:
+    print(f'🛑 ERRO DE DDL/CONEXÃO: {err}')
+    sys.exit(1)
+          "
 
-# Função que executa o setup DDL
-def setup_database():
-    try:
-        conn = mysql.connector.connect(
-            host=os.environ.get("DB_HOST"),
-            user=os.environ.get("DB_USER"),
-            password=os.environ.get("DB_PASS"),
-            database=os.environ.get("DB_NAME"),
-            port=int(os.environ.get("DB_PORT")),
-            ssl_mode="REQUIRED"
-        )
-        cursor = conn.cursor()
-        cursor.execute(CREATE_TABLE_SQL)
-        conn.commit()
-        print("✅ SUCESSO! Tabela 'Tasks' criada ou já existente.")
-    except mysql.connector.Error as err:
-        print(f"🛑 ERRO AO CONFIGURAR O BANCO DE DADOS: {err}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    setup_database()
+      # --- CAMINHO 2: CORTEX CORE EXECUTION (Mocking) ---
+      - name: ▶️ Run C.O.R.T.E.X. Core Logic (CI Mocking)
+        if: github.event.inputs.run_db_setup == false
+        run: |
+          echo "EXECUTANDO CORE: Modo MOCKING Ativo."
+          python -m backend.core
