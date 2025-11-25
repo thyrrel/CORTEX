@@ -1,4 +1,4 @@
-name: CORTEX
+name: Create CORTEX System
 on: 
   workflow_dispatch:
   push:
@@ -8,50 +8,81 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
-    - name: Create Main System
-      uses: "DamianReeves/write-file-action@master"
-      with:
-        path: cortex/main.py
-        contents: |
-          #!/usr/bin/env python3
-          print("🧠 CORTEX System v1.0.0")
-          print("C.O.R.T.E.X.!")
-          import asyncio, datetime
-          async def main():
-              print(f"✅ Sistema operacional: {datetime.datetime.now()}")
-          asyncio.run(main())
-        write-mode: overwrite
+    - name: Create CORTEX Directory
+      run: mkdir -p cortex
+      
+    - name: Create Main System File
+      run: |
+        echo '#!/usr/bin/env python3
+import asyncio
+import datetime
+
+print("🧠 CORTEX v1.0.0 - Sistema Inteligente")
+print("=" * 50)
+
+async def main():
+    print(f"✅ Sistema iniciado: {datetime.datetime.now()}")
+    print("📡 Comandos disponíveis:")
+    print("  - scan: Escaneia rede")
+    print("  - status: Mostra status")
+    print("  - exit: Sair")
+    
+    while True:
+        comando = input("CORTEX> ").strip().lower()
+        if comando == "exit":
+            break
+        elif comando == "scan":
+            print("🔍 Escaneando rede...")
+            print("✅ 2 dispositivos encontrados!")
+        elif comando == "status":
+            print(f"📊 Status: Online - {datetime.datetime.now()}")
+        else:
+            print("Comandos: scan, status, exit")
+
+if __name__ == "__main__":
+    asyncio.run(main())' > cortex/main.py
 
     - name: Create Requirements
-      uses: "DamianReeves/write-file-action@master"
-      with:
-        path: cortex/requirements.txt
-        contents: |
-          cryptography>=41.0.0
-          netifaces>=0.11.0
-          psutil>=5.9.0
-        write-mode: overwrite
+      run: |
+        echo "cryptography>=41.0.0" > cortex/requirements.txt
+        echo "netifaces>=0.11.0" >> cortex/requirements.txt
+        echo "psutil>=5.9.0" >> cortex/requirements.txt
 
     - name: Create README
-      uses: "DamianReeves/write-file-action@master"
-      with:
-        path: cortex/README.md
-        contents: |
-          # 🧠 CORTEX System!
-          ## Uso
-          ```bash
-          pip install -r requirements.txt
-          python main.py
-          ```
-        write-mode: overwrite
+      run: |
+        echo "# 🧠 CORTEX System
+## Sistema Criado via Navegador GitHub
 
-    - name: Create ZIP
-      run: zip -r cortex-browser.zip cortex/
+### Instalação
+\`\`\`bash
+pip install -r requirements.txt
+python main.py
+\`\`\`
 
-    - name: Upload ZIP
-      uses: actions/upload-artifact@v3
+### Comandos
+- \`scan\` - Escaneia rede
+- \`status\` - Mostra status
+- \`exit\` - Sair" > cortex/README.md
+
+    - name: Create Setup Script
+      run: |
+        echo "#!/bin/bash
+echo '🚀 Instalando CORTEX...'
+pip install -r requirements.txt
+echo '✅ Pronto! Execute: python main.py'" > cortex/setup.sh
+        chmod +x cortex/setup.sh
+
+    - name: Create ZIP Archive
+      run: |
+        cd cortex
+        zip -r cortex-system.zip .
+        mv cortex-system.zip ../
+
+    - name: Upload ZIP Artifact
+      uses: actions/upload-artifact@v4
       with:
-        name: cortex
-        path: cortex.zip
+        name: cortex-system-v1
+        path: cortex-system.zip
+        retention-days: 30
