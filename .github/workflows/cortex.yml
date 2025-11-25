@@ -1,0 +1,30 @@
+name: Create CORTEX System
+on: workflow_dispatch
+
+jobs:
+  create-system:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Create CORTEX System
+      run: |
+        # Script criador completo
+        mkdir -p cortex/{config,modules/{core,security,network,interface},logs,tests}
+        
+        # Criar main.py
+        cat > cortex/main.py << 'ENDFILE'
+        # [Cole todo o código main.py aqui - vou fornecer versão curta]
+        print("CORTEX System Created!")
+        ENDFILE
+        
+        # Criar requirements.txt
+        echo "cryptography>=41.0.0" > cortex/requirements.txt
+        
+        # Zipar tudo
+        cd cortex && zip -r cortex.zip . && mv cortex.zip ../
+        
+    - name: Upload ZIP
+      uses: actions/upload-artifact@v3
+      with:
+        name: cortex-system
+        path: cortex.zip
