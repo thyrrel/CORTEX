@@ -14,11 +14,12 @@ jobs:
     runs-on: ubuntu-latest
 
     # 2.2. Mapeamento de Variáveis de Ambiente (Secrets)
+    # CORREÇÃO: Mapeamento dos Secrets usando os nomes curtos confirmados (DB_HOST, etc.).
     env:
-      CORTEX_DB_HOST: ${{ secrets.CORTEX_DB_HOST }}
-      CORTEX_DB_USER: ${{ secrets.CORTEX_DB_USER }}
-      CORTEX_DB_PASS: ${{ secrets.CORTEX_DB_PASS }}
-      CORTEX_DB_NAME: ${{ secrets.CORTEX_DB_NAME }}
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASS: ${{ secrets.DB_PASS }}
+      DB_NAME: ${{ secrets.DB_NAME }}
     
     # 2.3. Sequência de Passos (Steps)
     steps:
@@ -41,10 +42,9 @@ jobs:
       # --- Bloco de Execução Unificado ---
       - name: ▶️ Execute CORTEX Core and Validate Env
         run: |
-          # 1. Teste de Variáveis (Acessando diretamente no shell para debug)
+          # 1. Teste de Variáveis (Verifica se o Secret foi injetado)
           echo "Simulando teste de conexão/persistência..."
-          echo "Verificação CORTEX_DB_HOST: $CORTEX_DB_HOST"
+          echo "Verificação DB_HOST: $DB_HOST"
           
-          # 2. Execução de Módulo (Resolução de importações e execução do __main__.py)
-          # A importação agora deve ser resolvida devido à correção em task_repository.py.
+          # 2. Execução de Módulo (Comando que resolve a importação do __main__.py)
           python -m backend.core
