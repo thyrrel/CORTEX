@@ -14,7 +14,6 @@ jobs:
     runs-on: ubuntu-latest
 
     # 2.2. Mapeamento de Variáveis de Ambiente (Secrets)
-    # Credenciais MySQL são injetadas aqui.
     env:
       CORTEX_DB_HOST: ${{ secrets.CORTEX_DB_HOST }}
       CORTEX_DB_USER: ${{ secrets.CORTEX_DB_USER }}
@@ -39,21 +38,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install mysql-connector-python
 
-      # --- Bloco de Validação (Onde ocorreria o "teste") ---
-      # Se você tivesse um script de teste de conexão (e.g., test_db.py), 
-      # ele seria executado aqui.
+      # --- Bloco de Validação (Teste) ---
       - name: 🔍 Validate DB Connection Logic
         run: |
           echo "Simulando teste de conexão/persistência..."
-          # Se o seu __main__.py faz a inicialização da conexão, este passo
-          # garante que as variáveis foram lidas e o módulo importado.
           python -c "import os; print('DB Host:', os.environ.get('CORTEX_DB_HOST'))"
-          # Adicione aqui o comando real para rodar testes unitários de persistência se existirem.
 
-      # --- Bloco de Execução Principal (Onde ocorreria o "CORTEX") ---
-      # Passo 5: Execução do Core (Solução robusta de Injeção de Path)
+      # --- Bloco de Execução Principal (MODIFICADO para execução direta) ---
       - name: ▶️ Run C.O.R.T.E.X. Core Execution
         run: |
-          # Injeta o diretório raiz no sys.path para resolver importações relativas
-          # e executa o entry point __main__.py.
-          python -c "import sys; sys.path.append('.'); import backend.core.__main__"
+          # Define o PYTHONPATH para a raiz do projeto. 
+          # Isso é CRUCIAL para que a importação relativa funcione dentro do __main__.py.
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          
+          # Executa o script principal diretamente via caminho de arquivo.
+          # Isso contorna o erro de 'ModuleNotFoundError' que o -m estava gerando.
+          python backend/core/__main__.py
