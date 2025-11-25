@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  # 1. Permite execução manual e define as opções (botões)
+  # 1. Define as opções de execução manual
   workflow_dispatch:
     inputs:
       action_type:
@@ -13,8 +13,8 @@ on:
         type: choice
         default: 'Run_CORTEX_Core_CI'
         options:
-          - 'Run_CORTEX_Core_CI' # Execução normal (Mocking)
-          - 'Run_DB_Setup_Real'  # Execução para criar tabelas (Conexão Real)
+          - 'Run_CORTEX_Core_CI'  # Execução normal (Mocking)
+          - 'Run_DB_Setup_Real'   # Execução para criar tabelas (Conexão Real)
           
 jobs:
   run_task:
@@ -27,7 +27,6 @@ jobs:
       DB_PASS: ${{ secrets.DB_PASS }}
       DB_NAME: ${{ secrets.DB_NAME }}
       DB_PORT: ${{ secrets.DB_PORT }}
-      # Variável de controle do Mocking. Será usada na lógica.
       CORTEX_MODE: 'CI_TEST'
     
     steps:
@@ -42,16 +41,14 @@ jobs:
       - name: 📦 Install MySQL Connector
         run: pip install mysql-connector-python
 
-      # --- CAMINHO 1: DB SETUP (Execução Real de SQL) ---
-      # Condição: Só roda se o input for 'Run_DB_Setup_Real'
+      # --- CAMINHO 1: DB SETUP (Criação de Tabelas) ---
       - name: 🛠️ Execute DB Setup (Create Tables)
         if: github.event.inputs.action_type == 'Run_DB_Setup_Real'
-        # IMPORTANTE: Sobrescreve o CORTEX_MODE para NULO/VAZIO para forçar a conexão real
+        # Sobrescreve o CORTEX_MODE para NULO/VAZIO para forçar a conexão real
         env:
           CORTEX_MODE: '' 
         run: |
           echo "EXECUTANDO SETUP DE DB: Conexão Real Forçada."
-          # Script Python que executa o CREATE TABLE.
           python -c "
 import os, sys, mysql.connector
 CREATE_TABLE_SQL = '''
@@ -89,4 +86,3 @@ except mysql.connector.Error as err:
         run: |
           echo "EXECUTANDO CORE: Modo MOCKING Ativo."
           python -m backend.core
-          
