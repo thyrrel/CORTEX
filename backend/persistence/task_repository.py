@@ -1,17 +1,18 @@
-# backend/persistence/task_repository.py (Versão Corrigida)
+# backend/persistence/task_repository.py (Versão Final Corrigida)
 
 import os
 import mysql.connector
 
-# CORREÇÃO: Usando Importação Absoluta para resolver o ModuleNotFoundError.
-from backend.core.dataclasses import Task, TaskStatus, TaskPriority, GlobalContext, ExecutionTrace 
+# CORREÇÃO: Revertendo para a sintaxe de importação relativa de dois pontos (..), 
+# que é a esperada para o código interno de um pacote, resolvendo o último ModuleNotFoundError.
+from ..core.dataclasses import Task, TaskStatus, TaskPriority, GlobalContext, ExecutionTrace 
 
 class TaskRepository:
     """
     Gerencia a persistência de Tasks e ExecutionTraces no banco de dados MySQL.
     """
     def __init__(self):
-        # CORREÇÃO: Acessando os novos nomes de variáveis de ambiente.
+        # Sincronizado com os nomes de variáveis de ambiente do Actions.
         self.host = os.environ.get("DB_HOST") 
         self.user = os.environ.get("DB_USER")
         self.password = os.environ.get("DB_PASS")
@@ -38,9 +39,7 @@ class TaskRepository:
 
     # Placeholder para métodos de persistência
     def save_task(self, task: Task):
-        pass # Implementação futura
+        pass
 
     def get_task(self, task_id: str) -> Task:
-        pass # Implementação futura
-
-# Garanta que o __main__.py use TaskRepository, causando a tentativa de conexão.
+        pass
