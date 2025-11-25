@@ -1,30 +1,57 @@
-name: Create CORTEX System
-on: workflow_dispatch
+name: CORTEX
+on: 
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
 
 jobs:
-  create-system:
+  build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - name: Create CORTEX System
-      run: |
-        # Script criador completo
-        mkdir -p cortex/{config,modules/{core,security,network,interface},logs,tests}
-        
-        # Criar main.py
-        cat > cortex/main.py << 'ENDFILE'
-        # [Cole todo o código main.py aqui - vou fornecer versão curta]
-        print("CORTEX System Created!")
-        ENDFILE
-        
-        # Criar requirements.txt
-        echo "cryptography>=41.0.0" > cortex/requirements.txt
-        
-        # Zipar tudo
-        cd cortex && zip -r cortex.zip . && mv cortex.zip ../
-        
+    
+    - name: Create Main System
+      uses: "DamianReeves/write-file-action@master"
+      with:
+        path: cortex/main.py
+        contents: |
+          #!/usr/bin/env python3
+          print("🧠 CORTEX System v1.0.0")
+          print("C.O.R.T.E.X.!")
+          import asyncio, datetime
+          async def main():
+              print(f"✅ Sistema operacional: {datetime.datetime.now()}")
+          asyncio.run(main())
+        write-mode: overwrite
+
+    - name: Create Requirements
+      uses: "DamianReeves/write-file-action@master"
+      with:
+        path: cortex/requirements.txt
+        contents: |
+          cryptography>=41.0.0
+          netifaces>=0.11.0
+          psutil>=5.9.0
+        write-mode: overwrite
+
+    - name: Create README
+      uses: "DamianReeves/write-file-action@master"
+      with:
+        path: cortex/README.md
+        contents: |
+          # 🧠 CORTEX System!
+          ## Uso
+          ```bash
+          pip install -r requirements.txt
+          python main.py
+          ```
+        write-mode: overwrite
+
+    - name: Create ZIP
+      run: zip -r cortex-browser.zip cortex/
+
     - name: Upload ZIP
       uses: actions/upload-artifact@v3
       with:
-        name: cortex-system
+        name: cortex
         path: cortex.zip
