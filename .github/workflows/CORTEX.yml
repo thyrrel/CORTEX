@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  # 1. Define as opções de execução manual
+  # Permite execução manual e define as opções
   workflow_dispatch:
     inputs:
       action_type:
@@ -20,7 +20,7 @@ jobs:
   run_task:
     runs-on: ubuntu-latest
 
-    # 2. Injeta Secrets e o MODO CI_TEST padrão
+    # Injeta Secrets e o MODO CI_TEST padrão
     env:
       DB_HOST: ${{ secrets.DB_HOST }}
       DB_USER: ${{ secrets.DB_USER }}
@@ -42,6 +42,7 @@ jobs:
         run: pip install mysql-connector-python
 
       # --- CAMINHO 1: DB SETUP (Criação de Tabelas) ---
+      # Condição: Só roda se o input for 'Run_DB_Setup_Real'
       - name: 🛠️ Execute DB Setup (Create Tables)
         if: github.event.inputs.action_type == 'Run_DB_Setup_Real'
         # Sobrescreve o CORTEX_MODE para NULO/VAZIO para forçar a conexão real
