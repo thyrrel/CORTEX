@@ -1,59 +1,60 @@
-# backend/core/main.py (Trecho Relevante: Inicialização)
+# backend/core/__main__.py (Versão Corrigida para Lógica de Inicialização e Erro)
 
 import os
-import uuid
-import time
-from typing import Any
-# ... (Outras importações de CERNE, AgenteManager, dataclasses, scheduler)
-from ..persistence.task_repository import TaskRepository 
-# ... (Importação do logger, assumindo que existe)
+import sys
+# Importa a exceção específica do MySQL para tratamento de erros.
+from mysql.connector import Error as MySQLError 
 
+# Importa as classes de dependência necessárias
+from ..persistence.task_repository import TaskRepository
+# Assumindo que você também tem uma classe principal para o CORTEX
+# from ..core.main_controller import CORTEXController # Exemplo
+
+# ----------------------------------------------------
+# CORREÇÃO 1: Adicionando Inicialização de Atributos
+# ----------------------------------------------------
 class CORTEX:
-    # ... (Singleton Pattern e o método __new__)
-    
     def __init__(self):
-        if self._initialized:
-            return
-            
-        # 1. Definição do Modo de Operação (EDGE/SERVER)
-        self.mode = os.environ.get("CORTEX_MODE", "SERVER").upper() 
-        print(f"CORTEX Inicializando em modo: **{self.mode}**")
+        # 1. CORREÇÃO: Inicializa o atributo _initialized antes de usá-lo.
+        # Se você tem lógica de inicialização complexa, use False/True.
+        # Caso contrário, defina todos os atributos aqui.
+        self._initialized = False 
         
-        # 2. Carregar Configuração do DB a partir do Ambiente/Secrets
-        db_config = {
-            # Lê as variáveis definidas no GitHub Secrets (ou localmente)
-            "host": os.environ.get("CORTEX_DB_HOST"), 
-            "user": os.environ.get("CORTEX_DB_USER"),
-            "password": os.environ.get("CORTEX_DB_PASS"), 
-            "database": os.environ.get("CORTEX_DB_NAME", "cortex_db"), # Nome: ezyro_40493351_CORTEX
-        }
+        # O restante do seu código de inicialização do __init__ viria aqui.
+        print("CORTEX: Inicializando componentes...")
         
-        # Validação Crítica
-        if not all(db_config.values()):
-            # Esta verificação garante que a Action falhará se os Secrets não forem injetados
-            print("ERRO CRÍTICO: Credenciais de Banco de Dados Incompletas. Verifique GitHub Secrets.")
-            raise ValueError("Configuração DB Incompleta.")
-            
-        # 3. Task Repository (Injeção da Configuração)
-        self.task_repository = TaskRepository(db_config=db_config)
+        # Tenta inicializar o repositório, o que causa a tentativa de conexão MySQL
+        self.task_repo = TaskRepository()
         
-        # 4. Implementação da Lógica (AgenteManager, CERNE, Scheduler)
-        # ... (Inicialização dos outros componentes que usam o self.task_repository)
-
+        # Marca como inicializado
         self._initialized = True
         
-    # ... (Resto da classe, incluindo _create_context e start_system)
-    
-# --- Execução de Teste ---
+    def run(self):
+        """ Lógica principal de execução do loop do CORTEX. """
+        print("CORTEX: Loop de raciocínio ativado.")
+        # Lógica principal de loop de raciocínio, delegação, etc.
+
+# ----------------------------------------------------
+# CORREÇÃO 2: Tratamento de Exceções
+# ----------------------------------------------------
 if __name__ == "__main__":
-    # Garante que o teste de persistência rode:
-    os.environ["CORTEX_MODE"] = "SERVER" 
+    print("Iniciando CORTEX...")
     try:
-        cortex_server = CORTEX()
-        cortex_server.start_system() # start_system contém o teste de save/load
+        # Instanciação que desencadeia o TaskRepository.__init__ (e a conexão DB)
+        cortex_server = CORTEX() # Linha 52 (ou similar)
+
+        # Lógica principal (se a conexão for bem-sucedida)
+        # cortex_server.run() 
+        
+    # Linha 57: Captura a exceção de MySQL ou uma exceção genérica se houver outros erros
+    # CORREÇÃO: Usando a exceção importada (MySQLError) ou a genérica (Exception)
+    except MySQLError as e: 
+        print(f"ERRO CRÍTICO (MySQL): Falha na conexão ou credenciais: {e}")
+        sys.exit(1)
     except ValueError as e:
-        print(f"Falha de Inicialização: {e}")
-        exit(1) # Força a falha do script se houver erro crítico
-    except Error as e:
-        print(f"Falha de Persistência MySQL: {e}")
-        exit(1) # Força a falha do script se houver erro no TaskRepository
+        # Captura o erro de credenciais vazias do TaskRepository
+        print(f"ERRO DE CONFIGURAÇÃO: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"ERRO DESCONHECIDO: {e}")
+        sys.exit(1)
