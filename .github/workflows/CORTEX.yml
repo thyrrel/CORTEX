@@ -38,19 +38,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install mysql-connector-python
 
-      # --- Bloco de Validação (Teste) ---
-      - name: 🔍 Validate DB Connection Logic
+      # --- Bloco de Execução Unificado (Resolve Ambos os Erros) ---
+      - name: ▶️ Execute CORTEX Core and Validate Env
         run: |
+          # 1. Teste de Variáveis (Acessando diretamente no shell para debug)
           echo "Simulando teste de conexão/persistência..."
-          python -c "import os; print('DB Host:', os.environ.get('CORTEX_DB_HOST'))"
-
-      # --- Bloco de Execução Principal (MODIFICADO para execução direta) ---
-      - name: ▶️ Run C.O.R.T.E.X. Core Execution
-        run: |
-          # Define o PYTHONPATH para a raiz do projeto. 
-          # Isso é CRUCIAL para que a importação relativa funcione dentro do __main__.py.
-          export PYTHONPATH=$PWD:$PYTHONPATH
+          echo "Verificação CORTEX_DB_HOST: $CORTEX_DB_HOST"
           
-          # Executa o script principal diretamente via caminho de arquivo.
-          # Isso contorna o erro de 'ModuleNotFoundError' que o -m estava gerando.
-          python backend/core/__main__.py
+          # 2. Execução de Módulo para resolver importações relativas
+          # O Python procura o pacote 'backend.core' e executa seu __main__.py.
+          # Nota: O erro de 'DB Host:' vazio anteriormente está provavelmente mascarado 
+          # pelo erro fatal de importação. Se este passo funcionar, 
+          # a próxima falha será de credenciais/conexão.
+          python -m backend.core
