@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # 2.2. Mapeamento de Variáveis de Ambiente (Secrets)
-    # CORREÇÃO: Mapeamento dos Secrets usando os nomes curtos confirmados (DB_HOST, etc.).
+    # Sincronizado com os nomes de Secrets confirmados.
     env:
       DB_HOST: ${{ secrets.DB_HOST }}
       DB_USER: ${{ secrets.DB_USER }}
@@ -46,5 +46,5 @@ jobs:
           echo "Simulando teste de conexão/persistência..."
           echo "Verificação DB_HOST: $DB_HOST"
           
-          # 2. Execução de Módulo (Comando que resolve a importação do __main__.py)
+          # 2. Execução de Módulo (Comando que utiliza o __main__.py)
           python -m backend.core
