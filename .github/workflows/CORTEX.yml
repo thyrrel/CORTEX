@@ -12,38 +12,43 @@ jobs:
   run_cortex_core:
     runs-on: ubuntu-latest
 
-    # CORREÇÃO FINAL DE ESCOPO: Todas as variáveis e o MODO CI_TEST estão no nível do JOB.
+    # Escopo do Job: Injeta Secrets e o MODO CI_TEST
     env:
       DB_HOST: ${{ secrets.DB_HOST }}
       DB_USER: ${{ secrets.DB_USER }}
       DB_PASS: ${{ secrets.DB_PASS }}
       DB_NAME: ${{ secrets.DB_NAME }}
       DB_PORT: ${{ secrets.DB_PORT }}
-      CORTEX_MODE: CI_TEST # Define o modo de mocking globalmente
+      CORTEX_MODE: CI_TEST # Define o modo de mocking
     
     steps:
-      # Passo 1: Checkout do Repositório
+      # Passo 1, 2, 3: Setup e Dependências (Não Alterados)
       - name: ⬇️ Checkout Repository
         uses: actions/checkout@v4
 
-      # Passo 2: Configuração do Python
       - name: 🐍 Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           
-      # Passo 3: Instalação de Dependências
       - name: 📦 Install MySQL Connector
         run: |
           python -m pip install --upgrade pip
           pip install mysql-connector-python
 
-      # --- Bloco de Execução Unificado ---
-      - name: ▶️ Execute CORTEX Core in CI Mode
+      # --- [Lado Esquerdo: MySQL/Persistência] ---
+      - name: 🔍 Validate Persistence (CI_TEST Mode)
         run: |
-          # 1. Teste de Variáveis e MODO
+          echo "Simulando teste de conexão MySQL (Modo CI_TEST)..."
           echo "CORTEX_MODE: $CORTEX_MODE"
           echo "Verificação DB_HOST: $DB_HOST"
           
-          # 2. Execução de Módulo
+          # Tenta inicializar o repositório, que ativará o mocking e retornará.
+          python -c "from backend.persistence.task_repository import TaskRepository; TaskRepository()"
+
+      # --- [Lado Direito: Execução Final do Core] ---
+      - name: ▶️ Run C.O.R.T.E.X. Core Logic
+        run: |
+          echo "Iniciando Execução da Lógica Principal do C.O.R.T.E.X...."
+          # Executa o entry point, que agora não falhará na persistência.
           python -m backend.core
