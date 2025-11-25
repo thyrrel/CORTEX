@@ -38,16 +38,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install mysql-connector-python
 
-      # --- Bloco de Execução Unificado (Resolve Ambos os Erros) ---
+      # --- Bloco de Execução Unificado ---
       - name: ▶️ Execute CORTEX Core and Validate Env
         run: |
           # 1. Teste de Variáveis (Acessando diretamente no shell para debug)
           echo "Simulando teste de conexão/persistência..."
           echo "Verificação CORTEX_DB_HOST: $CORTEX_DB_HOST"
           
-          # 2. Execução de Módulo para resolver importações relativas
-          # O Python procura o pacote 'backend.core' e executa seu __main__.py.
-          # Nota: O erro de 'DB Host:' vazio anteriormente está provavelmente mascarado 
-          # pelo erro fatal de importação. Se este passo funcionar, 
-          # a próxima falha será de credenciais/conexão.
+          # 2. Execução de Módulo (Resolução de importações e execução do __main__.py)
+          # A importação agora deve ser resolvida devido à correção em task_repository.py.
           python -m backend.core
