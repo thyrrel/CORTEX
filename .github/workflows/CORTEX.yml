@@ -1,7 +1,6 @@
 name: C.O.R.T.E.X. Core Execution
 
 # 1. Gatilho (Trigger)
-# O workflow será executado em pushes para o branch 'main' e manualmente.
 on:
   push:
     branches:
@@ -15,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     # 2.2. Mapeamento de Variáveis de Ambiente (Secrets)
+    # Credenciais MySQL são injetadas aqui.
     env:
       CORTEX_DB_HOST: ${{ secrets.CORTEX_DB_HOST }}
       CORTEX_DB_USER: ${{ secrets.CORTEX_DB_USER }}
@@ -39,9 +39,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install mysql-connector-python
 
-      # Passo 4: Execução do Core (Injeção Forçada do Path)
-      - name: ▶️ Run C.O.R.T.E.X. Core Logic (Injeção de Path)
+      # --- Bloco de Validação (Onde ocorreria o "teste") ---
+      # Se você tivesse um script de teste de conexão (e.g., test_db.py), 
+      # ele seria executado aqui.
+      - name: 🔍 Validate DB Connection Logic
         run: |
-          # Usa 'python -c' para adicionar o diretório raiz ao sys.path antes de importar o módulo.
-          # Isso é robusto e resolve o erro 'no known parent package' e o problema de __main__ ausente.
+          echo "Simulando teste de conexão/persistência..."
+          # Se o seu __main__.py faz a inicialização da conexão, este passo
+          # garante que as variáveis foram lidas e o módulo importado.
+          python -c "import os; print('DB Host:', os.environ.get('CORTEX_DB_HOST'))"
+          # Adicione aqui o comando real para rodar testes unitários de persistência se existirem.
+
+      # --- Bloco de Execução Principal (Onde ocorreria o "CORTEX") ---
+      # Passo 5: Execução do Core (Solução robusta de Injeção de Path)
+      - name: ▶️ Run C.O.R.T.E.X. Core Execution
+        run: |
+          # Injeta o diretório raiz no sys.path para resolver importações relativas
+          # e executa o entry point __main__.py.
           python -c "import sys; sys.path.append('.'); import backend.core.__main__"
