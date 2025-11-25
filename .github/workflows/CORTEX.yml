@@ -1,0 +1,92 @@
+name: C.O.R.T.E.X. Core Execution and Setup
+
+on:
+  push:
+    branches:
+      - main
+  # 1. Permite execução manual e define as opções (botões)
+  workflow_dispatch:
+    inputs:
+      action_type:
+        description: 'Selecione a Ação Desejada:'
+        required: true
+        type: choice
+        default: 'Run_CORTEX_Core_CI'
+        options:
+          - 'Run_CORTEX_Core_CI' # Execução normal (Mocking)
+          - 'Run_DB_Setup_Real'  # Execução para criar tabelas (Conexão Real)
+          
+jobs:
+  run_task:
+    runs-on: ubuntu-latest
+
+    # 2. Injeta Secrets e o MODO CI_TEST padrão
+    env:
+      DB_HOST: ${{ secrets.DB_HOST }}
+      DB_USER: ${{ secrets.DB_USER }}
+      DB_PASS: ${{ secrets.DB_PASS }}
+      DB_NAME: ${{ secrets.DB_NAME }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      # Variável de controle do Mocking. Será usada na lógica.
+      CORTEX_MODE: 'CI_TEST'
+    
+    steps:
+      - name: ⬇️ Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐍 Set up Python and Install Dependencies
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+        
+      - name: 📦 Install MySQL Connector
+        run: pip install mysql-connector-python
+
+      # --- CAMINHO 1: DB SETUP (Execução Real de SQL) ---
+      # Condição: Só roda se o input for 'Run_DB_Setup_Real'
+      - name: 🛠️ Execute DB Setup (Create Tables)
+        if: github.event.inputs.action_type == 'Run_DB_Setup_Real'
+        # IMPORTANTE: Sobrescreve o CORTEX_MODE para NULO/VAZIO para forçar a conexão real
+        env:
+          CORTEX_MODE: '' 
+        run: |
+          echo "EXECUTANDO SETUP DE DB: Conexão Real Forçada."
+          # Script Python que executa o CREATE TABLE.
+          python -c "
+import os, sys, mysql.connector
+CREATE_TABLE_SQL = '''
+CREATE TABLE IF NOT EXISTS Tasks (
+    task_id VARCHAR(36) PRIMARY KEY,
+    content TEXT NOT NULL,
+    status VARCHAR(10) NOT NULL DEFAULT 'PENDING',
+    priority VARCHAR(10) NOT NULL DEFAULT 'MEDIUM',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+'''
+try:
+    conn = mysql.connector.connect(
+        host=os.environ.get('DB_HOST'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASS'),
+        database=os.environ.get('DB_NAME'),
+        port=int(os.environ.get('DB_PORT')),
+        ssl_mode='REQUIRED'
+    )
+    cursor = conn.cursor()
+    cursor.execute(CREATE_TABLE_SQL)
+    conn.commit()
+    print('✅ SUCESSO: Tabela Tasks configurada.')
+except mysql.connector.Error as err:
+    print(f'🛑 ERRO DE DDL/CONEXÃO: {err}')
+    sys.exit(1)
+          "
+          
+      # --- CAMINHO 2: CORTEX CORE EXECUTION (Mocking) ---
+      # Condição: Só roda se o input for 'Run_CORTEX_Core_CI'
+      - name: ▶️ Run C.O.R.T.E.X. Core Logic (CI Mocking)
+        if: github.event.inputs.action_type == 'Run_CORTEX_Core_CI'
+        run: |
+          echo "EXECUTANDO CORE: Modo MOCKING Ativo."
+          python -m backend.core
+          
