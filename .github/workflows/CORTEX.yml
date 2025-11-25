@@ -13,14 +13,14 @@ on:
         type: choice
         default: 'Run_CORTEX_Core_CI'
         options:
-          - 'Run_CORTEX_Core_CI'  # Execução normal (Mocking)
-          - 'Run_DB_Setup_Real'   # Execução para criar tabelas (Conexão Real)
+          - 'Run_CORTEX_Core_CI'
+          - 'Run_DB_Setup_Real'
           
 jobs:
   run_task:
     runs-on: ubuntu-latest
 
-    # Injeta Secrets e o MODO CI_TEST padrão
+    # Variáveis globais do job
     env:
       DB_HOST: ${{ secrets.DB_HOST }}
       DB_USER: ${{ secrets.DB_USER }}
@@ -42,12 +42,11 @@ jobs:
         run: pip install mysql-connector-python
 
       # --- CAMINHO 1: DB SETUP (Criação de Tabelas) ---
-      # Condição: Só roda se o input for 'Run_DB_Setup_Real'
       - name: 🛠️ Execute DB Setup (Create Tables)
         if: github.event.inputs.action_type == 'Run_DB_Setup_Real'
-        # Sobrescreve o CORTEX_MODE para NULO/VAZIO para forçar a conexão real
+        # CORREÇÃO CRÍTICA: ENV e RUN são irmãos do 'if' (mesma indentação)
         env:
-          CORTEX_MODE: '' 
+          CORTEX_MODE: 'REAL_DB' # Sobrescreve para forçar a conexão real
         run: |
           echo "EXECUTANDO SETUP DE DB: Conexão Real Forçada."
           python -c "
@@ -81,7 +80,6 @@ except mysql.connector.Error as err:
           "
           
       # --- CAMINHO 2: CORTEX CORE EXECUTION (Mocking) ---
-      # Condição: Só roda se o input for 'Run_CORTEX_Core_CI'
       - name: ▶️ Run C.O.R.T.E.X. Core Logic (CI Mocking)
         if: github.event.inputs.action_type == 'Run_CORTEX_Core_CI'
         run: |
