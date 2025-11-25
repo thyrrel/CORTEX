@@ -1,4 +1,4 @@
-name: C.O.R.T.E.X.
+name: C.O.R.T.E.X. Core Execution
 
 # 1. Gatilho (Trigger)
 on:
@@ -10,18 +10,17 @@ on:
 # 2. Definição dos Jobs
 jobs:
   run_cortex_core:
-    # 2.1. Configuração do Ambiente
     runs-on: ubuntu-latest
 
-    # 2.2. Mapeamento de Variáveis de Ambiente (Secrets)
-    # Sincronizado com os nomes de Secrets confirmados.
+    # CORREÇÃO FINAL DE ESCOPO: Todas as variáveis e o MODO CI_TEST estão no nível do JOB.
     env:
       DB_HOST: ${{ secrets.DB_HOST }}
       DB_USER: ${{ secrets.DB_USER }}
       DB_PASS: ${{ secrets.DB_PASS }}
       DB_NAME: ${{ secrets.DB_NAME }}
+      DB_PORT: ${{ secrets.DB_PORT }}
+      CORTEX_MODE: CI_TEST # Define o modo de mocking globalmente
     
-    # 2.3. Sequência de Passos (Steps)
     steps:
       # Passo 1: Checkout do Repositório
       - name: ⬇️ Checkout Repository
@@ -40,11 +39,11 @@ jobs:
           pip install mysql-connector-python
 
       # --- Bloco de Execução Unificado ---
-      - name: ▶️ Execute CORTEX Core and Validate Env
+      - name: ▶️ Execute CORTEX Core in CI Mode
         run: |
-          # 1. Teste de Variáveis (Verifica se o Secret foi injetado)
-          echo "Simulando teste de conexão/persistência..."
+          # 1. Teste de Variáveis e MODO
+          echo "CORTEX_MODE: $CORTEX_MODE"
           echo "Verificação DB_HOST: $DB_HOST"
           
-          # 2. Execução de Módulo (Comando que utiliza o __main__.py)
+          # 2. Execução de Módulo
           python -m backend.core
