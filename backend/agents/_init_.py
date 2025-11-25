@@ -1,9 +1,10 @@
 # backend/agents/__init__.py
-from .agent_impls import Pesquisador_Agente, Engenheiro_Agente # Importa os agentes concretos
+from .agent_impls import Pesquisador_Agente, Engenheiro_Agente, Sensor_Agente, WorkerSimples 
 
-# Lista dos Agentes disponíveis para o AgenteManager
+# LISTA OFICIAL DE PLUGINS (Entry Point do sistema de agentes)
 AGENT_PLUGINS = [
     Pesquisador_Agente,
     Engenheiro_Agente,
-    # ... (adicionar outros agentes aqui)
+    Sensor_Agente, 
+    WorkerSimples,
 ]
