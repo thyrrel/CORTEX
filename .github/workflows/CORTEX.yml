@@ -1,0 +1,37 @@
+# .github/workflows/main.yml
+
+name: Cortex CI/CD Pipeline
+on: [push, pull_request]
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11' # Use a versão do Python do seu projeto
+        
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Instalação do driver MySQL necessário
+        pip install -r requirements.txt mysql-connector-python 
+        
+    - name: Run Tests with MySQL Persistence
+      # O env: é onde injetamos os Secrets como variáveis de ambiente
+      env:
+        CORTEX_DB_HOST: ${{ secrets.CORTEX_DB_HOST }}
+        CORTEX_DB_USER: ${{ secrets.CORTEX_DB_USER }}
+        CORTEX_DB_PASS: ${{ secrets.CORTEX_DB_PASS }}
+        CORTEX_DB_NAME: ${{ secrets.CORTEX_DB_NAME }}
+        
+      run: |
+        # Seu comando para rodar o CORTEX ou testes
+        python -m unittest discover backend/tests 
+        # Ou um comando para iniciar o sistema
+        # python backend/core/main.py
