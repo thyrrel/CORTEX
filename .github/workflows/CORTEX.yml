@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  # 1. Define o input booleano simples
   workflow_dispatch:
     inputs:
       run_db_setup:
@@ -38,51 +39,18 @@ jobs:
         run: pip install mysql-connector-python
 
       # --- CAMINHO 1: DB SETUP (Criação de Tabelas) ---
-      # Condição: Só roda se o input for TRUE
+      # Condição: Só roda se o input for TRUE.
       - name: 🛠️ Execute DB Setup (Create Tables)
         if: github.event.inputs.run_db_setup == true
-        # Define o CORTEX_MODE para o step
+        # Define o modo REAL e executa o script externo simples.
         env:
           CORTEX_MODE: 'SETUP_REAL' 
         run: |
           echo "EXECUTANDO SETUP DE DB: Conexão Real Forçada."
-          # O código Python DDL complexo está em um passo separado no próximo step (se bem-sucedido).
+          python db_setup_action.py
           
-      # --- Passo de DDL Separado (Roda SOMENTE se o step anterior for TRUE) ---
-      - name: 💾 Run DDL Script on Aiven
-        if: github.event.inputs.run_db_setup == true
-        run: |
-          python -c "
-import os, sys, mysql.connector
-CREATE_TABLE_SQL = '''
-CREATE TABLE IF NOT EXISTS Tasks (
-    task_id VARCHAR(36) PRIMARY KEY,
-    content TEXT NOT NULL,
-    status VARCHAR(10) NOT NULL DEFAULT 'PENDING',
-    priority VARCHAR(10) NOT NULL DEFAULT 'MEDIUM',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-);
-'''
-try:
-    conn = mysql.connector.connect(
-        host=os.environ.get('DB_HOST'),
-        user=os.environ.get('DB_USER'),
-        password=os.environ.get('DB_PASS'),
-        database=os.environ.get('DB_NAME'),
-        port=int(os.environ.get('DB_PORT')),
-        ssl_mode='REQUIRED'
-    )
-    cursor = conn.cursor()
-    cursor.execute(CREATE_TABLE_SQL)
-    conn.commit()
-    print('✅ SUCESSO: Tabela Tasks configurada.')
-except mysql.connector.Error as err:
-    print(f'🛑 ERRO DE DDL/CONEXÃO: {err}')
-    sys.exit(1)
-          "
-
       # --- CAMINHO 2: CORTEX CORE EXECUTION (Mocking) ---
+      # Condição: Só roda se o input for FALSE.
       - name: ▶️ Run C.O.R.T.E.X. Core Logic (CI Mocking)
         if: github.event.inputs.run_db_setup == false
         run: |
