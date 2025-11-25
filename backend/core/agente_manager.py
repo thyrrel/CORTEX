@@ -1,14 +1,13 @@
 import os
-from typing import Dict, Type, Any
+from typing import Dict, Type, Any, Optional
 from abc import ABC, abstractmethod
+from ..utilities.logger import CORTEX_LOGGER # Importa o Logger
+from ..core.dataclasses import ExecutionTrace # Necessário para tipos de Workers
 
-# --- 1. Classes de Abstração de Workers ---
+# --- 1. Classes de Abstração de Workers (Base e Simulação - Inalteradas) ---
 
 class WorkerBase(ABC):
-    """
-    Classe base abstrata (Agente/Worker) para todos os componentes executáveis.
-    Garante a interface mínima para o CERNE.
-    """
+    """Classe base abstrata (Agente/Worker)."""
     
     def __init__(self, name: str, config: Dict[str, Any] = None):
         self.name = name
@@ -16,7 +15,7 @@ class WorkerBase(ABC):
         
     @abstractmethod
     def execute_task(self, task_data: Any) -> Any:
-        """Método principal para execução de tarefas delegadas pelo CERNE."""
+        """Método principal para execução de tarefas."""
         pass
         
     def __repr__(self):
@@ -25,6 +24,7 @@ class WorkerBase(ABC):
 class WorkerSimples(WorkerBase):
     """Implementação simples para uso em modo EDGE e Auto-Modulação."""
     def execute_task(self, task_data: str) -> str:
+        # Nota: O Worker pode usar o logger, mas aqui ele retorna a string processada.
         return f"Worker Simples [{self.name}] processou: '{task_data[:15]}...' (EDGE)"
 
 class Pesquisador_Agente(WorkerBase):
@@ -60,7 +60,7 @@ class AgenteManager:
         
         agent_definitions = {
             "SERVER": [Pesquisador_Agente, Engenheiro_Agente],
-            "EDGE": [Sensor_Agente]
+            "EDGE": [Sensor_Agente, WorkerSimples] # WorkerSimples útil para EDGE
         }
         
         agents_to_load = agent_definitions.get(self._mode, [])
@@ -69,28 +69,18 @@ class AgenteManager:
             agent_name = AgentClass.__name__
             self._agent_map[agent_name] = AgentClass
             
-        print(f"AgenteManager: Mapeados {len(self._agent_map)} agentes para o modo '{self._mode}'.")
+        CORTEX_LOGGER.info(
+            f"AgenteManager: Mapeados {len(self._agent_map)} agentes para o modo '{self._mode}'.",
+            extra_data={'mode': self._mode, 'agents': list(self._agent_map.keys())}
+        )
 
     def register_agent(self, agent_class: Type[WorkerBase]):
-        """Registra um novo agente dinamicamente."""
+        """Registra um novo agente dinamicamente (usado pelo CERNE na Auto-Modulação)."""
         agent_name = agent_class.__name__
         if agent_name in self._agent_map:
-            raise ValueError(f"Agente '{agent_name}' já registrado.")
+            CORTEX_LOGGER.warning(f"Tentativa de registrar agente duplicado: '{agent_name}'.")
+            return
             
         self._agent_map[agent_name] = agent_class
-        print(f"AgenteManager: Agente '{agent_name}' registrado dinamicamente.")
-
-    def get_agent(self, agent_name: str, config: Dict[str, Any] = None) -> WorkerBase:
-        """Instancia e retorna um agente pelo nome (ex: 'Pesquisador_Agente')."""
-        
-        AgentClass = self._agent_map.get(agent_name)
-        if not AgentClass:
-            raise ValueError(
-                f"Agente '{agent_name}' não encontrado. Verifique a nomenclatura *_Agente."
-            )
-            
-        return AgentClass(name=agent_name, config=config)
-
-    def list_agents(self) -> Dict[str, Type[WorkerBase]]:
-        """Retorna o dicionário de agentes mapeados."""
-        return self._agent_map
+        CORTEX_LOGGER.info(
+            f"Agente '{agent_name}' registrado dinamicamente.",
