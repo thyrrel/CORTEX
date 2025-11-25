@@ -3,7 +3,8 @@ import uuid
 import time
 from .agente_manager import AgenteManager, WorkerBase, WorkerSimples, WorkerCompleto
 from .dataclasses import Task, TaskStatus, TaskPriority, GlobalContext, ExecutionTrace
-# Importa o Logger Singleton para uso
+# Importa as classes do protocolo
+from .protocol import AgentMessage, AgentResponse 
 from ..utilities.logger import CORTEX_LOGGER 
 
 class CERNE: 
@@ -23,16 +24,12 @@ class CERNE:
         base_name = purpose.replace(' ', '_')
         agent_name = f"Agente_{base_name}_{uuid.uuid4().hex[:4]}" 
         
-        # Seleciona a classe base do Worker com base na complexidade
         if complexity.upper() == "COMPLETO":
             AgentClass = WorkerCompleto
-        else: # Simples (padrão)
+        else:
             AgentClass = WorkerSimples
 
-        # Cria uma nova classe temporária
         AdHocAgent = type(agent_name, (AgentClass,), {})
-        
-        # Registra o novo agente no AgenteManager
         self._manager.register_agent(AdHocAgent)
         
         CORTEX_LOGGER.info(
@@ -46,16 +43,16 @@ class CERNE:
     def processar_tarefa(self, raw_description: str, context: GlobalContext, initial_agent: Optional[str] = None) -> Task:
         """Inicia e executa o Loop de Raciocínio do CERNE para uma nova Tarefa."""
         
+        # 1. Configura a Task e o Logger
         task_id = f"TASK-{uuid.uuid4().hex[:8]}"
-        
-        # 1. Configura o contexto do Logger para esta Task
         CORTEX_LOGGER.set_task_context(task_id)
         
         task = Task(
             task_id=task_id,
             description=raw_description,
             context=context,
-            required_agent=initial_agent or "ANALYSIS_CORE"
+            # Mantemos 'required_agent' no dataclass para o histórico
+            required_agent=initial_agent or "ANALYSIS_CORE" 
         )
 
         CORTEX_LOGGER.info(f"Iniciando Tarefa: '{raw_description[:30]}...'", extra_data={'task_id': task_id})
@@ -79,4 +76,85 @@ class CERNE:
             "CERNE", 
             f"Tentando delegar para: {required_agent_name or 'Auto-Modulação'}"
         )
-        CORTEX_LOGGER
+        CORTEX_LOGGER.info(f"Tentativa de Delegação para {required_agent_name}.", extra_data={'delegation': required_agent_name})
+        
+        worker = None
+        if required_agent_name:
+            try:
+                worker = self._manager.get_agent(required_agent_name)
+            except ValueError:
+                CORTEX_LOGGER.warning(f"Agente '{required_agent_name}' não encontrado. Necessária Revisão.")
+                worker = None 
+
+        # 3. FASE DE REVISÃO (e Criação Dinâmica)
+        if worker is None:
+            task.update_status(
+                TaskStatus.ANALYSIS, 
+                "CERNE", 
+                "Agente indisponível. Acionando Auto-Modulação."
+            )
+            
+            # Lógica de Auto-Modulação
+            new_agent_name = self._create_new_adhoc_agent(
+                purpose="Revisor_AdHoc", 
+                complexity="Simples" if context.cortex_mode == "EDGE" else "COMPLETO"
+            )
+            worker = self._manager.get_agent(new_agent_name)
+            required_agent_name = new_agent_name
+            
+        task.delegated_to = required_agent_name
+        
+        # 4. FASE DE EXECUÇÃO
+        task.update_status(
+            TaskStatus.IN_PROGRESS, 
+            "CERNE", 
+            f"Preparando mensagem para {required_agent_name}"
+        )
+        
+        # --- NOVO: CONSTRUÇÃO DO AgentMessage ---
+        execution_message = AgentMessage(
+            task_id=task.task_id,
+            action_type="EXECUTE_TASK",
+            raw_prompt=raw_description,
+            parameters={'mode': context.cortex_mode} # Exemplo de parâmetro
+        )
+        # --- FIM DO NOVO ---
+        
+        CORTEX_LOGGER.info(f"Executando tarefa através do Agente: {required_agent_name}.")
+        
+        try:
+            # NOVO: Chamada ao Worker com o pacote AgentMessage
+            response: AgentResponse = worker.execute_task(message=execution_message)
+            
+            # --- NOVO: PROCESSAMENTO DO AgentResponse ---
+            
+            # Atualiza o resultado final
+            task.final_result = response.output_data
+            
+            # Determina o status final com base na resposta do agente
+            new_status = TaskStatus.COMPLETED if response.success else TaskStatus.FAILED
+            
+            # Atualiza o trace com dados estruturados da resposta
+            task.update_status(
+                new_status, 
+                required_agent_name, 
+                response.log_message, 
+                result={'output_data': response.output_data, 'next_action': response.suggested_next_action}, 
+                success=response.success
+            )
+            
+            CORTEX_LOGGER.info(
+                f"Execução SUCESSO. Status final: {new_status.value}. Próxima Ação: {response.suggested_next_action}",
+                extra_data={'exec_time': response.execution_time_ms}
+            )
+            
+        except Exception as e:
+            error_message = f"ERRO FATAL na execução do agente {required_agent_name}: {e}"
+            task.update_status(TaskStatus.FAILED, required_agent_name, error_message, result=error_message, success=False)
+            task.final_result = error_message
+            CORTEX_LOGGER.error(f"Execução FALHA. Status final: {TaskStatus.FAILED.value}", extra_data={'error': str(e)})
+            
+        # 5. Resetar o contexto do Logger
+        CORTEX_LOGGER.set_task_context(None)
+        
+        return task
