@@ -1,6 +1,7 @@
 name: C.O.R.T.E.X. Core Execution
 
 # 1. Gatilho (Trigger)
+# O workflow será executado em pushes para o branch 'main' e manualmente.
 on:
   push:
     branches:
@@ -38,12 +39,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install mysql-connector-python
 
-      # Passo 4: Execução do Core (Correção de Importação via PYTHONPATH)
-      - name: ▶️ Run C.O.R.T.E.X. Core Logic (Forçando PYTHONPATH)
+      # Passo 4: Execução do Core (Injeção Forçada do Path)
+      - name: ▶️ Run C.O.R.T.E.X. Core Logic (Injeção de Path)
         run: |
-          # Adiciona o diretório raiz do projeto (onde estão 'backend', etc.) ao PYTHONPATH.
-          # Isso permite que a importação relativa (from ..persistence...) funcione.
-          export PYTHONPATH=$PWD:$PYTHONPATH
-          
-          # Executa o script principal diretamente, que agora é __main__.py.
-          python backend/core/__main__.py
+          # Usa 'python -c' para adicionar o diretório raiz ao sys.path antes de importar o módulo.
+          # Isso é robusto e resolve o erro 'no known parent package' e o problema de __main__ ausente.
+          python -c "import sys; sys.path.append('.'); import backend.core.__main__"
