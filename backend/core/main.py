@@ -1,9 +1,9 @@
 import os
-from typing import Any, Dict
-# Importa as classes CERNE e AgenteManager do novo módulo
-from .agente_manager import AgenteManager, CERNE, WorkerBase 
-# Nota: pressupõe que CERNE e WorkerBase foram definidos ou importados/exportados
-# corretamente em agente_manager.py (como na etapa anterior)
+# Importa o CERNE do seu novo módulo dedicado
+from .cerne import CERNE 
+# Importa o AgenteManager do seu módulo dedicado
+from .agente_manager import AgenteManager 
+from typing import Any
 
 class CORTEX:
     """
@@ -31,10 +31,9 @@ class CORTEX:
         print(f"CORTEX Inicializando em modo: **{self.mode}**")
         
         # 2. Implementação da Lógica de Carregamento
-        # O CORTEX carrega o AgenteManager
         self.agente_manager = AgenteManager(mode=self.mode)
         
-        # O CORTEX inicializa o CERNE com o Manager
+        # 3. O CORTEX inicializa o CERNE com o Manager
         self.coordenador: CERNE = CERNE(agente_manager=self.agente_manager)
         
         self._initialized = True
@@ -57,7 +56,7 @@ class CORTEX:
         
         print("------------------------------------------")
         
-# --- 3. Execução de Teste ---
+# --- 4. Execução de Teste ---
 if __name__ == "__main__":
     # Teste em modo SERVER (padrão)
     os.environ["CORTEX_MODE"] = "SERVER" 
@@ -68,7 +67,6 @@ if __name__ == "__main__":
     
     # Teste em modo EDGE
     os.environ["CORTEX_MODE"] = "EDGE" 
-    # Reseta o Singleton para simular um ambiente EDGE separado
     CORTEX._instance = None 
     cortex_edge = CORTEX()
     cortex_edge.start_system()
