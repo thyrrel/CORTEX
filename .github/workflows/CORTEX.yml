@@ -1,12 +1,10 @@
 name: C.O.R.T.E.X. Core Execution
 
 # 1. Gatilho (Trigger)
-# O workflow será executado em pushes para o branch 'main'.
 on:
   push:
     branches:
       - main
-  # Permite execução manual via interface do GitHub
   workflow_dispatch:
 
 # 2. Definição dos Jobs
@@ -16,8 +14,6 @@ jobs:
     runs-on: ubuntu-latest
 
     # 2.2. Mapeamento de Variáveis de Ambiente (Secrets)
-    # As variáveis são definidas aqui para serem acessíveis a todos os passos (steps)
-    # dentro deste job.
     env:
       CORTEX_DB_HOST: ${{ secrets.CORTEX_DB_HOST }}
       CORTEX_DB_USER: ${{ secrets.CORTEX_DB_USER }}
@@ -39,13 +35,15 @@ jobs:
       # Passo 3: Instalação de Dependências
       - name: 📦 Install MySQL Connector
         run: |
-          # Garante que o pip está atualizado
           python -m pip install --upgrade pip
-          # Instala a dependência requerida para a conexão MySQL
           pip install mysql-connector-python
 
-      # Passo 4: Execução do Core (MODIFICADO para execução de módulo)
-      # Executa o pacote 'backend.core' usando a flag -m.
-      # Isso resolve o problema de importação relativa.
-      - name: ▶️ Run C.O.R.T.E.X. Core Logic
-        run: python -m backend.core
+      # Passo 4: Execução do Core (Correção de Importação via PYTHONPATH)
+      - name: ▶️ Run C.O.R.T.E.X. Core Logic (Forçando PYTHONPATH)
+        run: |
+          # Adiciona o diretório raiz do projeto (onde estão 'backend', etc.) ao PYTHONPATH.
+          # Isso permite que a importação relativa (from ..persistence...) funcione.
+          export PYTHONPATH=$PWD:$PYTHONPATH
+          
+          # Executa o script principal diretamente, que agora é __main__.py.
+          python backend/core/__main__.py
