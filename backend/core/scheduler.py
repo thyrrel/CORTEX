@@ -5,37 +5,10 @@ import uuid
 from typing import Optional, Dict, List
 from .cerne import CERNE
 from .dataclasses import Task, TaskStatus, TaskPriority, GlobalContext
+from ..persistence.task_repository import TaskRepository # Importa o repositório formalizado
+from ..utilities.logger import CORTEX_LOGGER # Importa o Logger Singleton
 
-# --- 1. Camada de Persistência (Placeholder) ---
-
-class TaskPersister:
-    """
-    Simulação de um mecanismo de persistência (Ex: Banco de Dados/Cache).
-    Responsável por salvar e carregar o estado completo da Task.
-    """
-    def __init__(self):
-        # Em um sistema real, aqui se conectaria ao DB (SQLite, Redis, etc.)
-        self._storage: Dict[str, Task] = {} 
-        print("TaskPersister inicializado (Memória Volátil).")
-
-    def save_task(self, task: Task):
-        """Salva ou atualiza uma Task na persistência."""
-        # Note: Dataclasses são serializáveis, mas aqui salvamos o objeto diretamente.
-        self._storage[task.task_id] = task
-        # print(f"Persisted: {task.task_id} | Status: {task.status.value}")
-
-    def load_task(self, task_id: str) -> Optional[Task]:
-        """Carrega uma Task pelo ID."""
-        return self._storage.get(task_id)
-
-    def load_pending_tasks(self) -> List[Task]:
-        """Carrega todas as tarefas que não foram concluídas/falhadas/canceladas."""
-        return [
-            t for t in self._storage.values() 
-            if t.status in [TaskStatus.PENDING, TaskStatus.DELEGATED, TaskStatus.IN_PROGRESS]
-        ]
-        
-# --- 2. Fila de Prioridade ---
+# --- Fila de Prioridade ---
 
 class TaskQueue:
     """
@@ -43,21 +16,23 @@ class TaskQueue:
     Usa a prioridade da Task para determinar a ordem de processamento.
     """
     def __init__(self):
-        # A fila armazena (prioridade, tempo de criação, Task). 
-        # O tempo de criação serve como desempate (FIFO para mesma prioridade).
+        # A fila armazena (prioridade invertida, tempo de criação, Task).
         self._queue = queue.PriorityQueue()
+        CORTEX_LOGGER.info("TaskQueue inicializada.")
 
     def enqueue(self, task: Task):
         """Adiciona uma Task à fila com base em sua prioridade."""
-        # Prioridade é invertida: valor mais alto (CRITICAL) deve ter prioridade mais baixa na tupla.
+        # Prioridade é invertida: valor mais alto (CRITICAL) tem a menor tupla para ser processado primeiro.
         priority_tuple = (-task.priority.value, task.creation_time, task)
         self._queue.put(priority_tuple)
-        print(f"Task {task.task_id} enfileirada. Prioridade: {task.priority.value}.")
+        CORTEX_LOGGER.info(
+            f"Task enfileirada. Prioridade: {task.priority.value}.",
+            extra_data={'task_id': task.task_id, 'priority': task.priority.value}
+        )
 
     def dequeue(self) -> Optional[Task]:
         """Remove e retorna a Task de maior prioridade."""
         try:
-            # Retorna apenas o objeto Task (último elemento da tupla)
             _, _, task = self._queue.get_nowait()
             return task
         except queue.Empty:
@@ -66,62 +41,66 @@ class TaskQueue:
     def is_empty(self):
         return self._queue.empty()
 
-# --- 3. O Scheduler Principal ---
+# --- O Scheduler Principal ---
 
 class CERNEScheduler(threading.Thread):
     """
     Executa o CERNE em uma thread separada, processando tarefas da fila de forma assíncrona.
+    Utiliza o TaskRepository para carregar e persistir o estado das Tasks.
     """
-    def __init__(self, cerne_instance: CERNE, persister: TaskPersister):
+    # ATENÇÃO: O construtor foi ajustado para receber TaskRepository
+    def __init__(self, cerne_instance: CERNE, task_repository: TaskRepository):
         super().__init__(name="CERNEScheduler-Thread")
         self._cerne = cerne_instance
-        self._persister = persister
+        self._repository = task_repository
         self._task_queue = TaskQueue()
         self._running = False
-        print("CERNEScheduler criado. Pronto para gerenciar a execução assíncrona.")
+        CORTEX_LOGGER.info("CERNEScheduler criado. Pronto para gerenciar execução assíncrona.")
 
     def run(self):
         """O Loop principal da Thread do Scheduler."""
         self._running = True
-        print(f"Scheduler Thread '{self.name}' iniciada.")
+        CORTEX_LOGGER.info(f"Scheduler Thread '{self.name}' iniciada.")
         
-        # 1. Recuperar tarefas pendentes da última sessão (Simulação de "Hot Reload")
-        pending_tasks = self._persister.load_pending_tasks()
+        # 1. Recuperar tarefas pendentes da última sessão (Recuperação de estado)
+        pending_tasks = self._repository.find_pending_tasks()
         for task in pending_tasks:
             self._task_queue.enqueue(task)
+            CORTEX_LOGGER.warning(
+                f"Tarefa pendente recuperada e re-enfileirada.",
+                extra_data={'task_id': task.task_id, 'status': task.status.value}
+            )
             
         while self._running:
             task = self._task_queue.dequeue()
             
             if task:
-                # Processamento da Task: O CERNE assume o controle
-                print(f"\n[Scheduler] Processando Task {task.task_id}...")
+                CORTEX_LOGGER.info(f"Iniciando processamento da Task.", extra_data={'task_id': task.task_id})
                 
                 # O CERNE recebe a Task, processa e a retorna atualizada
-                # O processar_tarefa deve ser adaptado para receber uma Task existente
-                
-                # Adaptação temporária: Forçamos o CERNE a re-processar o prompt original
-                # Em um sistema real, haveria um método 'resume_task'
+                # Nota: Futuramente, este método deve ser 'resume_task' para continuar o trace.
                 updated_task = self._cerne.processar_tarefa(
                     task.description, 
                     task.context, 
                     task.required_agent
                 )
                 
-                # Persistir o resultado final
-                self._persister.save_task(updated_task)
+                # Persistir o resultado final usando o Repositório
+                self._repository.save(updated_task)
+                CORTEX_LOGGER.info(f"Task finalizada e estado persistido. Status: {updated_task.status.value}", extra_data={'task_id': task.task_id})
                 
             else:
-                # Aguarda um momento antes de verificar a fila novamente
+                # Aguarda um momento para evitar loop ativo
                 time.sleep(0.5)
 
     def stop(self):
-        """Sinaliza à thread para parar a execução."""
+        """Sinaliza à thread para parar a execução e aguarda seu encerramento seguro."""
+        CORTEX_LOGGER.warning(f"Sinal de parada recebido. Encerrando Scheduler Thread.")
         self._running = False
-        self.join() # Espera a thread terminar
-        print(f"Scheduler Thread '{self.name}' encerrada.")
+        self.join() 
+        CORTEX_LOGGER.info(f"Scheduler Thread '{self.name}' encerrada.")
 
-    def submit_task(self, raw_description: str, context: GlobalContext, priority: TaskPriority, initial_agent: Optional[str] = None):
+    def submit_task(self, raw_description: str, context: GlobalContext, priority: TaskPriority, initial_agent: Optional[str] = None) -> Task:
         """Recebe uma nova tarefa do CORTEX, cria o objeto Task e a submete à fila."""
         task_id = f"TASK-{uuid.uuid4().hex[:8]}"
         new_task = Task(
@@ -131,7 +110,12 @@ class CERNEScheduler(threading.Thread):
             priority=priority,
             required_agent=initial_agent
         )
-        self._persister.save_task(new_task) # Persiste o estado inicial
+        # Persiste o estado inicial antes de enfileirar
+        self._repository.save(new_task) 
         self._task_queue.enqueue(new_task)
+        
+        CORTEX_LOGGER.info(
+            f"Tarefa submetida com sucesso. Aguardando processamento.",
+            extra_data={'task_id': task_id, 'priority': priority.value}
+        )
         return new_task
-
