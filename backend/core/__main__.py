@@ -1,60 +1,58 @@
-# backend/core/__main__.py (Versão Corrigida para Lógica de Inicialização e Erro)
+# backend/core/__main__.py (Versão Final com Teste de Persistência)
 
-import os
 import sys
-# Importa a exceção específica do MySQL para tratamento de erros.
-from mysql.connector import Error as MySQLError 
+import mysql.connector
 
-# Importa as classes de dependência necessárias
+# Importações de módulos do projeto
 from ..persistence.task_repository import TaskRepository
-# Assumindo que você também tem uma classe principal para o CORTEX
-# from ..core.main_controller import CORTEXController # Exemplo
+from ..core.dataclasses import Task, TaskStatus, TaskPriority # Importar apenas o necessário
 
-# ----------------------------------------------------
-# CORREÇÃO 1: Adicionando Inicialização de Atributos
-# ----------------------------------------------------
+# Define o erro para captura no bloco principal
+MySQLError = mysql.connector.Error
+
 class CORTEX:
     def __init__(self):
-        # 1. CORREÇÃO: Inicializa o atributo _initialized antes de usá-lo.
-        # Se você tem lógica de inicialização complexa, use False/True.
-        # Caso contrário, defina todos os atributos aqui.
         self._initialized = False 
-        
-        # O restante do seu código de inicialização do __init__ viria aqui.
         print("CORTEX: Inicializando componentes...")
-        
-        # Tenta inicializar o repositório, o que causa a tentativa de conexão MySQL
+        # A inicialização do TaskRepository tentará a conexão ou entrará em mocking.
         self.task_repo = TaskRepository()
-        
-        # Marca como inicializado
         self._initialized = True
-        
+
     def run(self):
         """ Lógica principal de execução do loop do CORTEX. """
         print("CORTEX: Loop de raciocínio ativado.")
-        # Lógica principal de loop de raciocínio, delegação, etc.
-
-# ----------------------------------------------------
-# CORREÇÃO 2: Tratamento de Exceções
-# ----------------------------------------------------
-if __name__ == "__main__":
-    print("Iniciando CORTEX...")
-    try:
-        # Instanciação que desencadeia o TaskRepository.__init__ (e a conexão DB)
-        cortex_server = CORTEX() # Linha 52 (ou similar)
-
-        # Lógica principal (se a conexão for bem-sucedida)
-        # cortex_server.run() 
         
-    # Linha 57: Captura a exceção de MySQL ou uma exceção genérica se houver outros erros
-    # CORREÇÃO: Usando a exceção importada (MySQLError) ou a genérica (Exception)
+        # 🧪 TESTE DE CONEXÃO E PERSISTÊNCIA 🧪
+        if self.task_repo.conn is not None:
+            print("CORTEX: Rodando teste de persistência...")
+            nova_tarefa = Task(
+                task_id="", 
+                content="Analisar e estruturar o plano de desenvolvimento do Módulo 1 (Scheduler) e do Agente Core.",
+                priority=TaskPriority.HIGH
+            )
+            # Força o salvamento da primeira tarefa real
+            self.task_repo.save_task(nova_tarefa)
+            print("Teste de persistência concluído.")
+        else:
+            print("CORTEX: Teste de persistência ignorado (Modo MOCKING/CI_TEST).")
+
+        # Futura lógica do CORTEX virá aqui...
+
+
+if __name__ == "__main__":
+    try:
+        cortex_server = CORTEX() 
+        cortex_server.run() 
+        
     except MySQLError as e: 
+        # Captura erros de conexão/autenticação MySQL
         print(f"ERRO CRÍTICO (MySQL): Falha na conexão ou credenciais: {e}")
         sys.exit(1)
     except ValueError as e:
-        # Captura o erro de credenciais vazias do TaskRepository
+        # Captura erros de configuração (e.g., variável faltando)
         print(f"ERRO DE CONFIGURAÇÃO: {e}")
         sys.exit(1)
     except Exception as e:
+        # Captura erros inesperados
         print(f"ERRO DESCONHECIDO: {e}")
         sys.exit(1)
