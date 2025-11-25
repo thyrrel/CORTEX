@@ -2,17 +2,21 @@ import os
 import uuid
 import time
 from typing import Any, Optional
+# Importações do Core
 from .cerne import CERNE 
 from .agente_manager import AgenteManager 
 from .dataclasses import GlobalContext, TaskStatus, TaskPriority
-from ..persistence.task_repository import TaskRepository 
 from .scheduler import CERNEScheduler 
-from ..utilities.logger import CORTEX_LOGGER # Importa o Logger
+# Importação da Política de Retry para o teste inicial
+from .retry_policy import RetryPolicy 
+# Importações de Camadas Externas
+from ..persistence.task_repository import TaskRepository 
+from ..utilities.logger import CORTEX_LOGGER 
 
 class CORTEX:
     """
-    A Fachada Singleton e o Ponto de Entrada (main) do Sistema de Orquestração C.O.R.T.E.X.
-    Inicializa todas as camadas arquiteturais.
+    A Fachada Singleton e o Ponto de Entrada do Sistema C.O.R.T.E.X.
+    Orquestra a inicialização de todas as camadas e gerencia o ciclo de vida.
     """
     _instance = None
     
@@ -27,7 +31,7 @@ class CORTEX:
         if self._initialized:
             return
             
-        # 1. Definição do Modo de Operação
+        # --- Configuração Inicial ---
         self.mode = os.environ.get("CORTEX_MODE", "SERVER").upper()
         if self.mode not in ["EDGE", "SERVER"]:
              CORTEX_LOGGER.critical(f"Modo CORTEX_MODE inválido: {self.mode}. Encerrando.")
@@ -35,17 +39,20 @@ class CORTEX:
         
         CORTEX_LOGGER.info(f"CORTEX Inicializando em modo: **{self.mode}**", extra_data={'mode': self.mode})
         
-        # 2. Implementação da Lógica de Carregamento
+        # --- Inicialização das Camadas ---
+        
+        # 1. Agente Manager (Gerencia Workers)
         self.agente_manager = AgenteManager(mode=self.mode)
         
-        # 3. Inicializa o CERNE
+        # 2. CERNE (Lógica de Domínio)
         self.coordenador: CERNE = CERNE(agente_manager=self.agente_manager)
         
-        # 4. Camada de Persistência
+        # 3. Task Repository (Persistência)
         self.task_repository = TaskRepository() 
         
-        # 5. Agendamento
-        self.scheduler = CERNEScheduler(
+        # 4. CERNEScheduler (Execução Assíncrona, Injeção de CERNE e Repositório)
+        # O GlobalContext é criado no start_system, mas aqui a instância é criada.
+        self.scheduler: CERNEScheduler = CERNEScheduler(
             cerne_instance=self.coordenador, 
             task_repository=self.task_repository
         ) 
@@ -69,13 +76,14 @@ class CORTEX:
         # INICIA A THREAD DO SCHEDULER
         self.scheduler.start()
         
-        # --- Teste 1: Tarefa Crítica (Prioridade Máxima) ---
-        task_prompt_1 = "Monitorar e reportar falha de segurança CRÍTICA no módulo XY."
+        # --- Teste 1: Tarefa Crítica (Simula a necessidade de RETRY) ---
+        task_prompt_1 = "Monitorar e reportar falha de segurança CRÍTICA no módulo XY (Teste de Backoff)."
         context_1 = self._create_context(task_prompt_1)
 
+        # O Engenheiro_Agente está propenso a falhas de rede simuladas
         initial_agent_1 = "Engenheiro_Agente" if self.mode == "SERVER" else "Sensor_Agente"
             
-        CORTEX_LOGGER.info(f"[TESTE 1] Submetendo tarefa de **Prioridade Crítica** para {initial_agent_1}.")
+        CORTEX_LOGGER.info(f"[TESTE 1] Submetendo tarefa de **Prioridade Crítica** ({initial_agent_1}).")
         task_1 = self.scheduler.submit_task(
             task_prompt_1, 
             context_1, 
@@ -83,7 +91,7 @@ class CORTEX:
             initial_agent=initial_agent_1
         )
         
-        # --- Teste 2: Tarefa Normal (Baixa Prioridade) ---
+        # --- Teste 2: Tarefa Normal (Simula Auto-Modulação) ---
         task_prompt_2 = "Compilar relatório semanal de desempenho (Baixa Prioridade)."
         context_2 = self._create_context(task_prompt_2)
         
@@ -96,53 +104,7 @@ class CORTEX:
         )
 
         # Permite que o Scheduler processe as tarefas
-        time.sleep(2) 
+        # (O teste 1 deve entrar em WAITING_BACKOFF)
+        time.sleep(RetryPolicy.get_wait_time(1) + 2) # Espera o primeiro backoff + margem
         
-        # Simula o encerramento seguro do sistema
-        self.scheduler.stop()
-        CORTEX_LOGGER.info("Scheduler Thread encerrada. Recuperando resultados para verificação.")
-
-        # Recupera e exibe o resultado final das tarefas persistidas
-        print("\n--- Resultados Persistidos (Verificação de Integridade) ---")
-        
-        final_task_1 = self.task_repository.find_by_id(task_1.task_id)
-        final_task_2 = self.task_repository.find_by_id(task_2.task_id)
-
-        self._display_task_summary(final_task_1)
-        self._display_task_summary(final_task_2)
-            
-        print("----------------------------------------------------------")
-
-    def _display_task_summary(self, task: Optional[Any]):
-        """Exibe o resumo detalhado de uma Task, recuperada do Repositório."""
-        if not task:
-             print("Task não encontrada no Repositório.")
-             return
-             
-        # Saída formatada no console para facilitar a leitura humana do teste
-        print(f"\n### Resumo da Tarefa {task.task_id} (P:{task.priority.value}) ###")
-        print(f"  Status Final: **{task.status.value}**")
-        print(f"  Delegado Final: {task.delegated_to}")
-        print(f"  Resultado Final: {str(task.final_result)[:60]}...")
-        
-        print("\n  Historico de Rastreamento (Trace):")
-        for i, trace in enumerate(task.trace_history):
-            status = trace.success and "SUCESSO" or "FALHA"
-            print(f"    [{i+1}] {trace.agent_name} ({status}): {trace.action_description[:50]}...")
-        
-        
-# --- 6. Execução de Teste ---
-if __name__ == "__main__":
-    # Teste em modo SERVER (padrão)
-    os.environ["CORTEX_MODE"] = "SERVER" 
-    cortex_server = CORTEX()
-    cortex_server.start_system()
-    
-    print("\n\n=======================================================")
-    
-    # Teste em modo EDGE
-    os.environ["CORTEX_MODE"] = "EDGE" 
-    # Reseta o Singleton (Simula reinicialização do processo)
-    CORTEX._instance = None 
-    cortex_edge = CORTEX()
-    cortex_edge.start_system()
+        # Simula o enc
